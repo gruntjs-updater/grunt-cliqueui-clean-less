@@ -1,0 +1,46 @@
+{
+  "name": "grunt-cliqueui-clean-less",
+  "description": "Grunt plugin for cleaning and optimizing .less files",
+  "version": "0.1.0",
+  "homepage": "https://github.com/nielse63/grunt-cliqueui-clean-less",
+  "author": {
+    "name": "Erik Nielsen",
+    "email": "erik@312development.com",
+    "url": "http://312development.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/nielse63/grunt-cliqueui-clean-less.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nielse63/grunt-cliqueui-clean-less/issues"
+  },
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "https://github.com/nielse63/grunt-cliqueui-clean-less/blob/master/LICENSE-MIT"
+    }
+  ],
+  "engines": {
+    "node": ">= 0.8.0"
+  },
+  "scripts": {
+    "test": "grunt test"
+  },
+  "devDependencies": {
+    "grunt-contrib-jshint": "^0.9.2",
+    "grunt-contrib-clean": "^0.5.0",
+    "grunt-contrib-nodeunit": "^0.3.3",
+    "grunt": "~0.4.5"
+  },
+  "peerDependencies": {
+    "grunt": "~0.4.5"
+  },
+  "keywords": [
+    "gruntplugin"
+  ],
+  "dependencies": {
+    "chalk": "^1.0.0",
+    "css": "^2.2.0"
+  }
+}
