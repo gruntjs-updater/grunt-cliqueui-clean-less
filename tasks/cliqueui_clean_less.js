@@ -28,7 +28,7 @@ module.exports = function(grunt) {
 		content = content || grunt.file.read(varObject.file);
 		usingIndex = usingIndex == undefined ? true : usingIndex;
 		var substring = usingIndex ? content.substring(varObject.index + varObject.variable.length) : content;
-		return substring.indexOf(varObject.variable) > -1;
+		return (substring.indexOf(varObject.variable) > -1 || substring.indexOf('@{' + varObject.variable.replace('@', '') + '}') > -1);
 	};
 
 	var getContentArray = function(content) {
@@ -55,9 +55,18 @@ module.exports = function(grunt) {
 		return 0;
 	};
 
+	var arrayUnique = function(a) {
+		return a.reduce(function(p, c) {
+			if (p.indexOf(c) < 0) p.push(c);
+			return p;
+		}, []);
+	};
+
 	grunt.registerMultiTask('cliqueui_clean_less', 'Grunt plugin for cleaning and optimizing .less files', function() {
 		var options = this.options({
-			searchIn : 'build/less'
+			searchIn : 'build/less',
+			log : false,
+			displayOutput : true
 		});
 		var searchFiles = [],
 			searchDir = path.resolve(options.searchIn);
@@ -81,7 +90,7 @@ module.exports = function(grunt) {
 				}
 
 				var content = grunt.file.read(filepath);
-				var vars = content.match(/(@.*?:)/g);
+				var vars = content.match(/(@\S[^";,) ]*?:)/g);
 				if(!vars || !vars.length) {
 					continue;
 				}
@@ -106,13 +115,14 @@ module.exports = function(grunt) {
 			}
 		});
 		var output = {};
+		var passed = [];
 		if(unused.length && searchFiles.length) {
 			for(var i = 0; i < searchFiles.length; i++) {
 				var filepath = searchFiles[i];
 				var content = grunt.file.read(filepath);
 				for(var n = 0; n < unused.length; n++) {
 					var varObject = unused[n];
-					if(varObject.file == filepath) {
+					if(varObject.file == filepath || passed.indexOf(varObject.variable) > -1) {
 						continue;
 					}
 					if(!fileContainsVariable(varObject, content, false)) {
@@ -120,6 +130,8 @@ module.exports = function(grunt) {
 							output[varObject.file] = [];
 						}
 						output[varObject.file].push(varObject);
+					} else {
+						passed.push(varObject.variable);
 					}
 				}
 			}
@@ -127,17 +139,34 @@ module.exports = function(grunt) {
 		var keys = Object.keys(output);
 		if(keys.length) {
 			var outputString = '';
+			var logString = '';
 			for(var i = 0; i < keys.length; i++) {
 				var key = keys[i];
-				var value = output[key];
+				var value = arrayUnique(output[key]);
+				var newValues = [];
+				for(var n = 0; n < value.length; n++) {
+					var varObject = value[n];
+					if(passed.indexOf(varObject.variable) < 0) {
+						newValues.push(varObject);
+					}
+				}
+				value = newValues;
 				var string = value.length + ' unused variable' + (value.length > 1 ? 's' : '') + ' in ' + key.replace(process.cwd(), '');
 				outputString += "\n" + chalk.white.bgRed(string);
+				logString += "\n" + string + "\n// ========================================================================";
 				for(var n = 0; n < value.length; n++) {
 					var varObject = value[n];
 					outputString += "\n" + chalk.red(varObject.variable) + ' on line ' + varObject.line;
+					logString += "\n\t" + varObject.variable + ' on line ' + varObject.line;
 				}
+				logString += "\n";
 			}
-			grunt.log.writeln(outputString);
+			if(options.displayOutput) {
+				grunt.log.writeln(outputString);
+			} else if(options.log) {
+				grunt.log.ok('Saving output to log: ' + options.log);
+				grunt.file.write(path.resolve(options.log), logString);
+			}
 		} else {
 			grunt.log.ok('No unused variables found.');
 		}
