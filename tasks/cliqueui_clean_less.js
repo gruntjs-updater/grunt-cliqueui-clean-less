@@ -68,6 +68,22 @@ module.exports = function(grunt) {
 		}, []);
 	};
 
+	function componentToHex(c) {
+		var hex = c.toString(16);
+		return hex.length == 1 ? "0" + hex : hex;
+	}
+
+	function rgbToHex(r, g, b) {
+		var red = componentToHex(r);
+		var green = componentToHex(g);
+		var blue = componentToHex(b);
+		if((r[0] == r[1]) && (g[0] == g[1]) && (b[0] == b[1])) {
+			return "#" + red[0] + green[0] + blue[0];
+		} else {
+			return "#" + red + green + blue;
+		}
+	}
+
 	grunt.registerMultiTask('cliqueui_clean_less', 'Grunt plugin for cleaning and optimizing .less files', function() {
 		var options = this.options({
 			searchIn : '',
@@ -100,12 +116,35 @@ module.exports = function(grunt) {
 				var filepath = path.resolve(file);
 
 				var content = grunt.file.read(file);
-				// var vars = content.match(/(@\S[^";,) ]*?:)/g);
+
+				// Convert RGBA
+				var rgbaRegex = /rgba\((.+?)\)/g;
+				var rgbas = rgbaRegex.exec(content);
+				if(rgbas) {
+					while(rgbas != null) {
+						var match = rgbas[0];
+						var colorVars = rgbas[1].split(',');
+						var red = parseInt(colorVars[0], 10);
+						var green = parseInt(colorVars[1], 10);
+						var blue = parseInt(colorVars[2], 10);
+						var alpha = colorVars[3];
+						var hex = rgbToHex(red, green, blue);
+						alpha = (alpha * 100) + '%';
+
+						var newValue = 'fade(' + hex + ', ' + alpha + ')';
+						content = content.replace(match, newValue);
+						grunt.file.write(file, content);
+
+						rgbas = rgbaRegex.exec(content);
+					}
+				}
+
+				// Clean variables
 				var vars = content.match(/@(.*);/g);
 				if(!vars || !vars.length) {
 					continue;
 				}
-				
+
 				var contentArray = getContentArray(content);
 				var varObjects = [];
 
