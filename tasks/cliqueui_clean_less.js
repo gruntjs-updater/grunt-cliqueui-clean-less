@@ -10,6 +10,10 @@
 var path = require('path');
 var chalk = require('chalk');
 var css = require('css');
+var less = require('less');
+
+// Internal modules
+// var findRepeating = require('./lib/repitious-vars');
 
 module.exports = function(grunt) {
 
@@ -28,7 +32,9 @@ module.exports = function(grunt) {
 		content = content || grunt.file.read(varObject.file);
 		usingIndex = usingIndex == undefined ? true : usingIndex;
 		var substring = usingIndex ? content.substring(varObject.index + varObject.variable.length) : content;
-		return (substring.indexOf(varObject.variable) > -1 || substring.indexOf('@{' + varObject.variable.replace('@', '') + '}') > -1);
+		return (substring.indexOf(varObject.variable) > -1 ||
+				substring.indexOf('@{' + varObject.variable.replace('@', '') + '}') > -1 ||
+				substring.indexOf('// ' + varObject.variable) > -1);
 	};
 
 	var getContentArray = function(content) {
@@ -64,8 +70,9 @@ module.exports = function(grunt) {
 
 	grunt.registerMultiTask('cliqueui_clean_less', 'Grunt plugin for cleaning and optimizing .less files', function() {
 		var options = this.options({
-			searchIn : 'build/less',
+			searchIn : '',
 			log : false,
+			logRepeating : false,
 			displayOutput : true
 		});
 		var searchFiles = [],
@@ -79,33 +86,74 @@ module.exports = function(grunt) {
 
 		grunt.log.writeln('Searching for unused variables');
 
+		var files, variables = [];
+
 		this.files.forEach(function(file) {
 
-			var files = getAvailableFiles(file.src);
+			files = getAvailableFiles(file.src);
 			for(var i = 0; i < files.length; i++) {
-				var filepath = path.resolve(files[i]);
-				if(!grunt.file.exists(filepath)) {
-					grunt.warn(files[i] + ' doesn\'t exist.');
+				var file = files[i];
+				if(!grunt.file.exists(file)) {
+					grunt.warn(file + ' doesn\'t exist.');
 					continue;
 				}
+				var filepath = path.resolve(file);
 
-				var content = grunt.file.read(filepath);
-				var vars = content.match(/(@\S[^";,) ]*?:)/g);
+				var content = grunt.file.read(file);
+				// var vars = content.match(/(@\S[^";,) ]*?:)/g);
+				var vars = content.match(/@(.*);/g);
 				if(!vars || !vars.length) {
 					continue;
 				}
-
+				
 				var contentArray = getContentArray(content);
 				var varObjects = [];
+
 				for(var n = 0; n < vars.length; n++) {
+
+					// Find repeating variables
 					var variable = vars[n];
+					if(variable.indexOf(':') < 0) {
+						continue;
+					}
+					var variableArray = variable.split(':');
+					var name = variableArray.shift();
+					var value = variableArray.join(':').split(';')[0].trim();
+					if(value[0] != '@') {
+						var foundRepeating = false;
+						for(var j = 0; j < variables.length; j++) {
+							var thisVariable = variables[j];
+							if(thisVariable.value == value) {
+								thisVariable.locations.push({
+									name : name,
+									file : file,
+									line : getVariableLine({variable : name }, contentArray)
+								});
+								foundRepeating = true
+								break;
+							}
+						}
+						if(!foundRepeating) {
+							variables.push({
+								value : value,
+								locations : [{
+									name : name,
+									file : file,
+									line : getVariableLine({variable : name }, contentArray)
+								}]
+							});
+						}
+					}
+
+					// Look for unused variablesvar variable = vars[n];
 					varObjects.push({
-						variable : variable.replace(':', ''),
+						variable : name,
 						index : content.indexOf(variable),
 						file : filepath,
-						line : getVariableLine({variable : variable }, contentArray)
+						line : getVariableLine({variable : name }, contentArray)
 					});
 				}
+
 				for(var n = 0; n < varObjects.length; n++) {
 					var varObject = varObjects[n];
 					if(!fileContainsVariable(varObject, content)) {
@@ -114,6 +162,18 @@ module.exports = function(grunt) {
 				}
 			}
 		});
+		var repeatingOutput = [];
+		for(var i = 0; i < variables.length; i++) {
+			var variable = variables[i];
+			if(variable.locations.length > 1) {
+				repeatingOutput.push(variable);
+			}
+		}
+		if(options.logRepeating) {
+			grunt.log.ok('Saving output to log: ' + options.logRepeating);
+			grunt.file.write(options.logRepeating, JSON.stringify(repeatingOutput, null, '\t'));
+		}
+
 		var output = {};
 		var passed = [];
 		if(unused.length && searchFiles.length) {
@@ -136,6 +196,7 @@ module.exports = function(grunt) {
 				}
 			}
 		}
+
 		var keys = Object.keys(output);
 		if(keys.length) {
 			var outputString = '';
